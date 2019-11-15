@@ -12,7 +12,22 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <None Update="Templates\RecordGenerator.tt">
+      <Generator>TextTemplatingFileGenerator</Generator>
+      <LastGenOutput>RecordGenerator.cs</LastGenOutput>
+    </None>
+  </ItemGroup>
+
+  <ItemGroup>
     <Service Include="{508349b6-6b84-4df5-91f0-309beebad82d}" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Update="Templates\RecordGenerator.cs">
+      <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
+      <DependentUpon>RecordGenerator.tt</DependentUpon>
+    </Compile>
   </ItemGroup>
 
 </Project>

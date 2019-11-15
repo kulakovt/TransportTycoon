@@ -1,0 +1,160 @@
+﻿<#@ include file="VisualStudioHelper.ttinclude" #>
+<#@ assembly name="System.Core" #>
+<#@ assembly name="EnvDTE"#>
+<#@ assembly name="EnvDTE80" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="EnvDTE" #>
+<#@ import namespace="Microsoft.VisualStudio.TextTemplating" #>
+<# 
+    VisualStudio = new AutomationHelper(this.Host);
+#>
+<#+
+
+    private static AutomationHelper VisualStudio;
+
+    public sealed class RecordBuilder
+    {
+        private const string RecordSuffix = "Record";
+
+        public static IReadOnlyList<RecordDefinition> Build()
+        {
+            return Build(VisualStudio.CurrentProject);
+        }
+
+        public static IReadOnlyList<RecordDefinition> Build(Project project)
+        {
+            return GetRecordDelegates(project)
+                .Select(ExtractDefinition)
+                .ToList();
+        }
+
+        private static IEnumerable<CodeDelegate> GetRecordDelegates(Project projectDef)
+        {
+            return VisualStudio
+                .CodeModel
+                .GetAllCodeElementsOfType(projectDef.CodeModel.CodeElements, vsCMElement.vsCMElementDelegate, false)
+                .Cast<CodeDelegate>()
+                .Where(recordDelegate => recordDelegate.Name.EndsWith(RecordSuffix))
+                .OrderBy(d => d.FullName);
+        }
+
+        private static RecordDefinition ExtractDefinition(CodeDelegate recordDelegate)
+        {
+            var access = MapAccessToString(recordDelegate.Access);
+            var members = recordDelegate
+                .Parameters
+                .Cast<CodeParameter>()
+                .Select(ExtractMember)
+                .ToList();
+
+            var name = recordDelegate.Name;
+            if (name.EndsWith(RecordSuffix))
+            {
+                name = name.Substring(0, name.Length - RecordSuffix.Length);
+            }
+
+            string parentTypeName = null;
+            if (recordDelegate.Type.TypeKind != vsCMTypeRef.vsCMTypeRefVoid)
+            {
+                parentTypeName = recordDelegate.Type.AsString;
+            }
+
+            // TODO: Add «DocComment» and «Comment»
+            return new RecordDefinition(name, recordDelegate.Namespace.Name, access, parentTypeName, members);
+        }
+
+        private static RecordMemberDefinition ExtractMember(CodeParameter parameter)
+        {
+            var name = Char.ToUpper(parameter.Name[0]) + parameter.Name.Substring(1);
+            // TODO: determine reference nullable types (like `Program?`)
+            var canBeNull = parameter.Type.AsFullName.Contains(".Nullable<") || parameter.Type.AsFullName == typeof(string).FullName;
+
+            // TODO: Add «DocComment»
+            return new RecordMemberDefinition(name, parameter.Type.AsString, canBeNull);
+        }
+
+        private static string MapAccessToString(vsCMAccess access)
+        {
+            switch (access)
+            {
+                case vsCMAccess.vsCMAccessPublic:
+                    return "public";
+                case vsCMAccess.vsCMAccessPrivate:
+                    return "private";
+                case vsCMAccess.vsCMAccessProtected:
+                    return "protected";
+                case vsCMAccess.vsCMAccessAssemblyOrFamily:
+                    return "internal";
+                default:
+                    return "internal";
+            }
+        }
+    }
+
+    public sealed class RecordDefinition
+    {
+        public RecordDefinition(string name, string ns, string access, string parentTypeName, IReadOnlyList<RecordMemberDefinition> members)
+        {
+            Name = name;
+            Namespace = ns;
+            Access = access;
+            ParentTypeName = parentTypeName;
+            Members = members;
+        }
+
+        public string Name { get; }
+
+        public string Namespace { get; }
+
+        public string Access { get; }
+
+        public string ParentTypeName { get; }
+
+        public IReadOnlyList<RecordMemberDefinition> Members { get; }
+    }
+
+    public sealed class RecordMemberDefinition
+    {
+        private readonly bool _canBeNull;
+
+        public RecordMemberDefinition(string name, string typeName, bool canBeNull)
+        {
+            Name = name;
+            TypeName = typeName;
+            _canBeNull = canBeNull;
+        }
+
+        public string Name { get; }
+
+        public string TypeName { get; }
+
+        public string FormatCamelCaseName()
+        {
+            if (Name.Length > 1)
+            {
+                return Char.ToLower(Name[0]) + Name.Substring(1);
+            }
+
+            return Name.ToLower();
+        }
+
+        public string FormatEqualsWith(string otherName)
+        {
+            // TODO: `Equals` for equatable not nullable types for avoid boxing
+            return String.Format("Equals({0}, {1}.{0})", Name, otherName);
+        }
+
+        public string FormatGetHashCode()
+        {
+            if (_canBeNull)
+            {
+                return String.Format("{0} != null ? {0}.GetHashCode() : 0", Name);
+            }
+            
+            return String.Format("{0}.GetHashCode()", Name);
+        }
+    }
+#>
