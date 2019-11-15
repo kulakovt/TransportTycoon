@@ -3,251 +3,162 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 
+using Cargo = System.Char;
+using Distance = System.UInt32;
+
+// ReSharper disable FieldCanBeMadeReadOnly.Local
+// ReSharper disable ArrangeTypeMemberModifiers
+// ReSharper disable ArrangeTypeModifiers
+// ReSharper disable BuiltInTypeReferenceStyle
+
 namespace TransportTycoon
 {
-    public class Program
+    enum VehicleType { Truck, Ship }
+
+    enum Location { Factory, Port, A, B }
+
+    [DebuggerDisplay("{VehicleType} —[ {Cargo.ToString()} ]→ {Location}")]
+    delegate void WaypointRecord(Location location, VehicleType vehicleType, Cargo cargo);
+
+    [DebuggerDisplay("{Location} ({Distance})")]
+    delegate void DestinationRecord(Location location, Distance distance);
+
+    class World
     {
-        public static void Main(string[] args)
+        const Cargo NoCargo = ' ';
+
+        static IReadOnlyDictionary<Waypoint, Destination> Map = new Dictionary<Waypoint, Destination>
         {
-            var cargo = "ABBBABAAABBB".ToCharArray();
-            if (args.Length > 0)
-            {
-                cargo = args[0].ToCharArray();
-            }
-
-            var world = new World(cargo);
-
-            int distance = 0;
-            while (!world.IsCargoDelivered())
-            {
-                distance++;
-                world.StepUp();
-            }
-
-            var cargoText = String.Join(",", cargo);
-            Console.WriteLine("{0} -> {1}", cargoText, distance);
-        }
-    }
-
-    internal sealed class World
-    {
-        private const string Factory = "Factory";
-        private const string Port = "Port";
-        private const string A = "A";
-        private const string B = "B";
-        private readonly int _totalCargoInWorld;
-
-        private readonly IReadOnlyDictionary<string, List<char>> _warehouses = new Dictionary<string, List<char>>
-        {
-            { Factory, new List<char>() },
-            { Port, new List<char>() },
-            { A, new List<char>() },
-            { B, new List<char>() }
+            { new Waypoint(Location.Factory, VehicleType.Truck, 'A'), new Destination(Location.Port, distance: 1) },
+            { new Waypoint(Location.Port, VehicleType.Truck, NoCargo), new Destination(Location.Factory, distance: 1) },
+            { new Waypoint(Location.Port, VehicleType.Ship, 'A'), new Destination(Location.A, distance: 4) },
+            { new Waypoint(Location.A, VehicleType.Ship, NoCargo), new Destination(Location.Port, distance: 4) },
+            { new Waypoint(Location.Factory, VehicleType.Truck, 'B'), new Destination(Location.B, distance: 5) },
+            { new Waypoint(Location.B, VehicleType.Truck, NoCargo), new Destination(Location.Factory, distance: 5) }
         };
 
-        private readonly IReadOnlyList<Vehicle> _vehicles;
-
-        public World(char[] cargo)
+        static IReadOnlyDictionary<Location, List<Cargo>> Locations = new Dictionary<Location, List<Cargo>>
         {
-            _totalCargoInWorld = cargo.Length;
-            var wayToPort = new Route(Factory, Port, 1);
-            var wayToA = new Route(Port, A, 4);
-            var wayToB = new Route(Factory, B, 5);
+            { Location.Factory, new List<Cargo>() },
+            { Location.Port, new List<Cargo>() },
+            { Location.A, new List<Cargo>() },
+            { Location.B, new List<Cargo>() }
+        };
 
-            _vehicles = new List<Vehicle>
-            {
-                new Vehicle("Truck-1", new[] { wayToPort, wayToB }, _warehouses),
-                new Vehicle("Truck-2", new[] { wayToPort, wayToB }, _warehouses),
-                new Vehicle("Ship-1", new[] { wayToA }, _warehouses)
-            };
+        static IReadOnlyList<Vehicle> Vehicles = new List<Vehicle>
+        {
+            new Vehicle(VehicleType.Truck, Location.Factory),
+            new Vehicle(VehicleType.Truck, Location.Factory),
+            new Vehicle(VehicleType.Ship, Location.Port)
+        };
 
-            _warehouses[Factory].AddRange(cargo);
+        static int InStock => Locations[Location.A].Count + Locations[Location.B].Count;
+
+        public static void Main(string[] args)
+        {
+            var goods = (args.Length > 0 ? args.First() : "ABBBABAAABBB").ToList();
+
+            var duration = Resolve(goods);
+
+            Console.WriteLine($"Input: {String.Join(String.Empty, goods)}, Output: {duration}");
         }
 
-        public void StepUp()
+        static int Resolve(IReadOnlyList<Cargo> goods)
         {
-            foreach (var transport in _vehicles)
+            Locations[Location.Factory].AddRange(goods);
+
+            var duration = 0;
+            while (true)
             {
-                transport.Take();
-            }
-
-            foreach (var transport in _vehicles)
-            {
-                transport.Go();
-            }
-
-            foreach (var transport in _vehicles)
-            {
-                transport.Put();
-            }
-        }
-
-        public bool IsCargoDelivered()
-        {
-            return
-                _warehouses[Factory].Count == 0 &&
-                _warehouses[Port].Count == 0 &&
-                (_warehouses[A].Count + _warehouses[B].Count == _totalCargoInWorld);
-        }
-
-        [DebuggerDisplay("{Name}")]
-        private class Vehicle
-        {
-            public readonly string Name;
-            public readonly IReadOnlyList<Route> Routes;
-            private readonly IReadOnlyDictionary<string, List<char>> _warehouses;
-            private Mission? _mission = null;
-
-            public Vehicle(string name, IReadOnlyList<Route> routes, IReadOnlyDictionary<string, List<char>> warehouses)
-            {
-                Name = name;
-                Routes = routes;
-                _warehouses = warehouses;
-            }
-
-            public void Take()
-            {
-                if (_mission == null)
+                foreach (var vehicle in Vehicles)
                 {
-                    _mission = TryLoadCargo();
+                    vehicle.Run();
                 }
-            }
 
-            public void Go()
-            {
-                _mission?.MoveOn();
-            }
-
-            public void Put()
-            {
-                switch (_mission)
+                if (InStock == goods.Count)
                 {
-                    case TransportCargo transportCargo:
-                        if (transportCargo.Complete)
-                        {
-                            UnloadCargo(transportCargo);
-                            _mission = ReturnBack.From(transportCargo.Route);
-                        }
-                        break;
-                    case ReturnBack backToFactory:
-                        if (backToFactory.Complete)
-                        {
-                            _mission = null;
-                        }
-                        break;
-
-                    default:
-                        // no cargo, waiting...
-                        break;
+                    break;
                 }
+
+                duration++;
             }
 
-            private TransportCargo? TryLoadCargo()
+            return duration;
+        }
+
+        class Vehicle
+        {
+            VehicleType type;
+            Location location;
+            Cargo cargo = NoCargo;
+            Distance currentDistance;
+            Distance targetDistance;
+
+            public Vehicle(VehicleType vehicleType, Location currentLocation)
             {
-                var source = Routes[0].From;
-                var warehouse = _warehouses[source];
+                type = vehicleType;
+                location = currentLocation;
+            }
+
+            bool StillOnTheWay => currentDistance < targetDistance;
+
+            public void Run()
+            {
+                if (StillOnTheWay)
+                {
+                    Move();
+                    return;
+                }
+
+                if (cargo == NoCargo)
+                {
+                    if (!TryLoad())
+                    {
+                        return;
+                    }
+                }
+                else
+                {
+                    Unload();
+                }
+
+                GetNewMission();
+                Move();
+            }
+
+            bool TryLoad()
+            {
+                var warehouse = Locations[location];
                 if (!warehouse.Any())
                 {
-                    // Warehouse is empty
-                    return null;
+                    // Wait until cargo is available
+                    return false;
                 }
 
-                var cargo = warehouse.First();
-                var destination = cargo.ToString();
-
-                var newRoute = Routes.SingleOrDefault(route => route.From == source && route.To == destination);
-
-                // Sorry about this hack, but I want to sleep. I promise to refactor this in future versions :(
-                if (newRoute == null && source == Factory && destination == A)
-                {
-                    newRoute = Routes.SingleOrDefault(route => route.From == source && route.To == Port);
-                }
-
-                if (newRoute == null)
-                {
-                    // Can't reach destination
-                    return null;
-                }
-
+                cargo = warehouse.First();
                 warehouse.RemoveAt(0);
-
-                return TransportCargo.To(newRoute, cargo);
+                return true;
             }
 
-            private void UnloadCargo(TransportCargo mission)
+            void Unload()
             {
-                var destination = mission.Route.To;
-                var cargo = mission.Cargo;
-                _warehouses[destination].Add(cargo);
-            }
-        }
-
-        private abstract class Mission
-        {
-            public Route Route;
-            public int Position;
-
-            public Mission(Route route)
-            {
-                Route = route;
-                Position = 0;
+                var warehouse = Locations[location];
+                warehouse.Add(cargo);
+                cargo = NoCargo;
             }
 
-            public bool Complete => Position == Route.Distance;
-
-            public void MoveOn()
+            void GetNewMission()
             {
-                if (Position == Route.Distance)
-                {
-                    throw new InvalidOperationException("Mission complete");
-                }
-
-                Position++;
-            }
-        }
-
-        private sealed class TransportCargo : Mission
-        {
-            public readonly char Cargo;
-
-            private TransportCargo(Route route, char cargo)
-                : base(route)
-            {
-                Cargo = cargo;
+                var currentWaypoint = new Waypoint(location, type, cargo);
+                var (newLocation, newDistance) = Map[currentWaypoint];
+                location = newLocation;
+                currentDistance = 0;
+                targetDistance = newDistance;
             }
 
-            public static TransportCargo To(Route route, char cargo)
+            void Move()
             {
-                return new TransportCargo(route, cargo);
-            }
-        }
-
-        private sealed class ReturnBack : Mission
-        {
-            private ReturnBack(Route route)
-                : base(route)
-            {
-            }
-
-            public static ReturnBack From(Route route)
-            {
-                var backRoute = new Route(route.To, route.From, route.Distance);
-                return new ReturnBack(backRoute);
-            }
-        }
-
-        [DebuggerDisplay("{From} → {To} ({Distance})")]
-        private sealed class Route
-        {
-            public readonly string From;
-            public readonly string To;
-            public readonly int Distance;
-
-            public Route(string from, string to, int distance)
-            {
-                From = from;
-                To = to;
-                Distance = distance;
+                currentDistance++;
             }
         }
     }
