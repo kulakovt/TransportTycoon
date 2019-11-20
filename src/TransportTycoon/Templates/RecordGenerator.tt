@@ -31,6 +31,12 @@ namespace <#= recordGroup.Key #>
 <#
         foreach (var recordDefinition in recordGroup)
         {
+            foreach (var recordAttribute in recordDefinition.Attributes)
+            {
+#>
+    [<#= recordAttribute.Name #>(<#= recordAttribute.Value #>)]
+<#
+            }
 #>
     <#= recordDefinition.Access #> sealed class <#= recordDefinition.Name #>: <#= recordDefinition.ParentTypeName == null ? String.Empty : recordDefinition.ParentTypeName + ", "  #>IEquatable<<#= recordDefinition.Name #>>
     {

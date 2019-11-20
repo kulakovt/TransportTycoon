@@ -51,6 +51,13 @@
                 .Select(ExtractMember)
                 .ToList();
 
+            var attributes = recordDelegate
+                .Attributes
+                .Cast<CodeAttribute>()
+                .Select(ExtractAttribute)
+                .Select(attr => MatchWithMembers(attr, members))
+                .ToList();
+
             var name = recordDelegate.Name;
             if (name.EndsWith(RecordSuffix))
             {
@@ -64,7 +71,7 @@
             }
 
             // TODO: Add «DocComment» and «Comment»
-            return new RecordDefinition(name, recordDelegate.Namespace.Name, access, parentTypeName, members);
+            return new RecordDefinition(name, recordDelegate.Namespace.Name, access, parentTypeName, members, attributes);
         }
 
         private static RecordMemberDefinition ExtractMember(CodeParameter2 parameter)
@@ -75,6 +82,37 @@
 
             // TODO: Add «DocComment»
             return new RecordMemberDefinition(name, parameter.Type.AsString, canBeNull, parameter.DefaultValue);
+        }
+
+        private static RecordAttributeDefinition ExtractAttribute(CodeAttribute attribute)
+        {
+            const string suffix = "Attribute";
+            string name = attribute.FullName;
+            if (name.EndsWith(suffix))
+            {
+                name = name.Substring(0, name.Length - suffix.Length);
+            }
+
+            return new RecordAttributeDefinition(name, attribute.Value);
+        }
+
+        private static RecordAttributeDefinition MatchWithMembers(RecordAttributeDefinition attribute, IReadOnlyList<RecordMemberDefinition> members)
+        {
+            if (attribute.Name == "System.Diagnostics.DebuggerDisplay")
+            {
+                // Special hack for DebuggerDisplay attribute
+                var value = attribute.Value;
+                foreach (var member in members)
+                {
+                    var paramName = "{" + member.FormatCamelCaseName() + "}";
+                    var propertyName = "{" + member.Name + "}";
+                    value = value.Replace(paramName, propertyName);
+                }
+
+                return new RecordAttributeDefinition(attribute.Name, value);
+            }
+
+            return attribute;
         }
 
         private static string MapAccessToString(vsCMAccess access)
@@ -97,13 +135,20 @@
 
     public sealed class RecordDefinition
     {
-        public RecordDefinition(string name, string ns, string access, string parentTypeName, IReadOnlyList<RecordMemberDefinition> members)
+        public RecordDefinition(
+            string name,
+            string ns,
+            string access,
+            string parentTypeName,
+            IReadOnlyList<RecordMemberDefinition> members,
+            IReadOnlyList<RecordAttributeDefinition> attributes)
         {
             Name = name;
             Namespace = ns;
             Access = access;
             ParentTypeName = parentTypeName;
             Members = members;
+            Attributes = attributes;
         }
 
         public string Name { get; }
@@ -115,6 +160,21 @@
         public string ParentTypeName { get; }
 
         public IReadOnlyList<RecordMemberDefinition> Members { get; }
+
+        public IReadOnlyList<RecordAttributeDefinition> Attributes { get; }
+    }
+
+    public sealed class RecordAttributeDefinition
+    {
+        public RecordAttributeDefinition(string name, string value)
+        {
+            Name = name;
+            Value = value;
+        }
+
+        public string Name { get; }
+
+        public string Value { get; }
     }
 
     public sealed class RecordMemberDefinition

@@ -10,12 +10,11 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Diagnostics;
 // ReSharper disable CheckNamespace
 
 namespace TransportTycoon
 {
-    [DebuggerDisplay("{Location} ({Distance})")]
+    [System.Diagnostics.DebuggerDisplay("{Location} ({Distance})")]
     internal sealed class Destination: IEquatable<Destination>
     {
         public Destination(TransportTycoon.Location location, int distance, int loadDuration = 0, int unloadDuration = 0)
@@ -78,7 +77,7 @@ namespace TransportTycoon
 
     }
 
-    [DebuggerDisplay("{VehicleType} —[ {Cargo.ToString()} ]→ {Location}")]
+    [System.Diagnostics.DebuggerDisplay("{VehicleType} —[ {Cargo} ]→ {Location}")]
     internal sealed class Waypoint: IEquatable<Waypoint>
     {
         public Waypoint(TransportTycoon.Location location, TransportTycoon.VehicleType vehicleType, char cargo)
