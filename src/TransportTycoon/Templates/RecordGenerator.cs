@@ -11,7 +11,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
-
 // ReSharper disable CheckNamespace
 
 namespace TransportTycoon
@@ -19,15 +18,21 @@ namespace TransportTycoon
     [DebuggerDisplay("{Location} ({Distance})")]
     internal sealed class Destination: IEquatable<Destination>
     {
-        public Destination(TransportTycoon.Location location, uint distance)
+        public Destination(TransportTycoon.Location location, int distance, int loadDuration = 0, int unloadDuration = 0)
         {
             Location = location;
             Distance = distance;
+            LoadDuration = loadDuration;
+            UnloadDuration = unloadDuration;
         }
 
         public TransportTycoon.Location Location { get; }
 
-        public uint Distance { get; }
+        public int Distance { get; }
+
+        public int LoadDuration { get; }
+
+        public int UnloadDuration { get; }
 
         #region Equality and Deconstruct Members
 
@@ -38,7 +43,9 @@ namespace TransportTycoon
 
             return
                 Equals(Location, other.Location) &&
-                Equals(Distance, other.Distance);
+                Equals(Distance, other.Distance) &&
+                Equals(LoadDuration, other.LoadDuration) &&
+                Equals(UnloadDuration, other.UnloadDuration);
         }
 
         public override bool Equals(object obj)
@@ -53,14 +60,18 @@ namespace TransportTycoon
                 int hashCode = 0;
                 hashCode = (hashCode * 397) ^ (Location.GetHashCode());
                 hashCode = (hashCode * 397) ^ (Distance.GetHashCode());
+                hashCode = (hashCode * 397) ^ (LoadDuration.GetHashCode());
+                hashCode = (hashCode * 397) ^ (UnloadDuration.GetHashCode());
                 return hashCode;
             }
         }
 
-        public void Deconstruct(out TransportTycoon.Location location, out uint distance)
+        public void Deconstruct(out TransportTycoon.Location location, out int distance, out int loadDuration, out int unloadDuration)
         {
             location = Location;
             distance = Distance;
+            loadDuration = LoadDuration;
+            unloadDuration = UnloadDuration;
         }
 
         #endregion Equality and Deconstruct Members
@@ -125,3 +136,4 @@ namespace TransportTycoon
     }
 
 }
+

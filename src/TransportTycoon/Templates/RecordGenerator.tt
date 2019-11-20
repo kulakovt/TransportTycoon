@@ -148,8 +148,16 @@ namespace <#= recordGroup.Key #>
 
     private static string OneLineParameters(IReadOnlyList<RecordMemberDefinition> members)
     {
-        return String.Join(", ", members
-            .Select(member => ShortNamespace(member.TypeName) + " " + member.FormatCamelCaseName()));
+        return String.Join(", ", members.Select(FormatOneLineParameter));
+    }
+
+    private static string FormatOneLineParameter(RecordMemberDefinition member)
+    {
+        return String.Format(
+            "{0} {1}{2}",
+            ShortNamespace(member.TypeName),
+            member.FormatCamelCaseName(),
+            member.DefaultValue == null ? String.Empty : " = " + member.DefaultValue);
     }
 
     private static string OneLineOutParameters(IReadOnlyList<RecordMemberDefinition> members)

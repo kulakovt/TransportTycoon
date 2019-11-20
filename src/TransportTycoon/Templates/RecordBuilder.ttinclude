@@ -7,6 +7,7 @@
 <#@ import namespace="System.Linq" #>
 <#@ import namespace="System.IO" #>
 <#@ import namespace="EnvDTE" #>
+<#@ import namespace="EnvDTE80" #>
 <#@ import namespace="Microsoft.VisualStudio.TextTemplating" #>
 <# 
     VisualStudio = new AutomationHelper(this.Host);
@@ -46,7 +47,7 @@
             var access = MapAccessToString(recordDelegate.Access);
             var members = recordDelegate
                 .Parameters
-                .Cast<CodeParameter>()
+                .Cast<CodeParameter2>()
                 .Select(ExtractMember)
                 .ToList();
 
@@ -66,14 +67,14 @@
             return new RecordDefinition(name, recordDelegate.Namespace.Name, access, parentTypeName, members);
         }
 
-        private static RecordMemberDefinition ExtractMember(CodeParameter parameter)
+        private static RecordMemberDefinition ExtractMember(CodeParameter2 parameter)
         {
             var name = Char.ToUpper(parameter.Name[0]) + parameter.Name.Substring(1);
             // TODO: determine reference nullable types (like `Program?`)
             var canBeNull = parameter.Type.AsFullName.Contains(".Nullable<") || parameter.Type.AsFullName == typeof(string).FullName;
 
             // TODO: Add «DocComment»
-            return new RecordMemberDefinition(name, parameter.Type.AsString, canBeNull);
+            return new RecordMemberDefinition(name, parameter.Type.AsString, canBeNull, parameter.DefaultValue);
         }
 
         private static string MapAccessToString(vsCMAccess access)
@@ -120,16 +121,19 @@
     {
         private readonly bool _canBeNull;
 
-        public RecordMemberDefinition(string name, string typeName, bool canBeNull)
+        public RecordMemberDefinition(string name, string typeName, bool canBeNull, string defaultValue)
         {
             Name = name;
             TypeName = typeName;
             _canBeNull = canBeNull;
+            DefaultValue = String.IsNullOrWhiteSpace(defaultValue) ? null : defaultValue;
         }
 
         public string Name { get; }
 
         public string TypeName { get; }
+
+        public string DefaultValue { get; }
 
         public string FormatCamelCaseName()
         {
