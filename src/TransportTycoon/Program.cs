@@ -31,8 +31,7 @@ namespace TransportTycoon
         {
             { new Waypoint(Location.Factory, VehicleType.Truck, 'A'), new Destination(Location.Port, travelDuration: 1) },
             { new Waypoint(Location.Port, VehicleType.Truck, NoCargo), new Destination(Location.Factory, travelDuration: 1) },
-            { new Waypoint(Location.Port, VehicleType.Ship, 'A'), new Destination(Location.A, travelDuration: 4) },
-            //{ new Waypoint(Location.Port, VehicleType.Ship, 'A'), new Destination(Location.A, travelDuration: 6, loadDuration: 1, unloadDuration: 1) },
+            { new Waypoint(Location.Port, VehicleType.Ship, 'A'), new Destination(Location.A, travelDuration: 6, loadDuration: 1, unloadDuration: 1) },
             { new Waypoint(Location.A, VehicleType.Ship, NoCargo), new Destination(Location.Port, travelDuration: 4) },
             { new Waypoint(Location.Factory, VehicleType.Truck, 'B'), new Destination(Location.B, travelDuration: 5) },
             { new Waypoint(Location.B, VehicleType.Truck, NoCargo), new Destination(Location.Factory, travelDuration: 5) }
@@ -92,7 +91,10 @@ namespace TransportTycoon
             VehicleType type;
             Location location;
             Cargo cargo = NoCargo;
+
+            Hour loadEta;
             Hour travelEta;
+            Hour unloadEta;
 
             public Vehicle(VehicleType vehicleType, Location currentLocation)
             {
@@ -102,53 +104,67 @@ namespace TransportTycoon
 
             public void Run(Hour time)
             {
+                if (loadEta > time)
+                {
+                    // Loading...
+                    return;
+                }
+
                 if (travelEta > time)
                 {
+                    // Still on the way
+                    return;
+                }
+
+                if (unloadEta > time)
+                {
+                    // Unloading...
                     return;
                 }
 
                 if (cargo == NoCargo)
                 {
-                    if (!TryLoad())
-                    {
-                        return;
-                    }
+                    Load(time);
                 }
                 else
                 {
-                    Unload();
+                    Unload(time);
                 }
-
-                GetNewMission(time);
             }
 
-            bool TryLoad()
+            void Load(Hour time)
             {
                 var warehouse = Locations[location];
                 if (!warehouse.Any())
                 {
                     // Wait until cargo is available
-                    return false;
+                    return;
                 }
 
-                cargo = warehouse.First();
-                warehouse.RemoveAt(0);
-                return true;
+                cargo = warehouse.Pop().Single();
+
+                var currentWaypoint = new Waypoint(location, type, cargo);
+                var (newLocation, travelDuration, loadDuration, unloadDuration) = Map[currentWaypoint];
+                location = newLocation;
+
+                loadEta = time + loadDuration;
+                travelEta = loadEta + travelDuration;
+                unloadEta = travelEta + unloadDuration;
             }
 
-            void Unload()
+            void Unload(Hour time)
             {
                 var warehouse = Locations[location];
                 warehouse.Add(cargo);
                 cargo = NoCargo;
-            }
 
-            void GetNewMission(Hour time)
-            {
                 var currentWaypoint = new Waypoint(location, type, cargo);
-                var (newLocation, travelDuration, loadDuration, unloadDuration) = Map[currentWaypoint];
+                var (newLocation, travelDuration, _, _) = Map[currentWaypoint];
                 location = newLocation;
+
+                loadEta = 0;
                 travelEta = time + travelDuration;
+                unloadEta = 0;
             }
         }
     }
