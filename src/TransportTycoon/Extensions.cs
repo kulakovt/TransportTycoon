@@ -17,5 +17,10 @@ namespace TransportTycoon
 
             return Array.Empty<T>();
         }
+
+        public static IReadOnlyList<T> PopAll<T>(this List<T> list)
+        {
+            return list.Pop(list.Count);
+        }
     }
 }

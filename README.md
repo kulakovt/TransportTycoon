@@ -10,5 +10,5 @@ Transport Tycoon Exercises for DDD
 | AB           | 5     | 9     |
 | BB           | 5     | 5     |
 | ABB          | 7     | 9     |
-| AABABBAB     | 29    | 45    |
-| ABBBABAAABBB | 41    | 57    |
+| AABABBAB     | 29    | 33    |
+| ABBBABAAABBB | 41    | 39    |
