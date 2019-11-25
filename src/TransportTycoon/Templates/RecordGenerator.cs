@@ -14,24 +14,24 @@ using System.Collections.Generic;
 
 namespace TransportTycoon
 {
-    [System.Diagnostics.DebuggerDisplay("{Location} ({Distance})")]
+    [System.Diagnostics.DebuggerDisplay("{Location} ({TravelDuration})")]
     internal sealed class Destination: IEquatable<Destination>
     {
-        public Destination(TransportTycoon.Location location, int distance, int loadDuration = 0, int unloadDuration = 0)
+        public Destination(TransportTycoon.Location location, uint travelDuration, uint loadDuration = 0, uint unloadDuration = 0)
         {
             Location = location;
-            Distance = distance;
+            TravelDuration = travelDuration;
             LoadDuration = loadDuration;
             UnloadDuration = unloadDuration;
         }
 
         public TransportTycoon.Location Location { get; }
 
-        public int Distance { get; }
+        public uint TravelDuration { get; }
 
-        public int LoadDuration { get; }
+        public uint LoadDuration { get; }
 
-        public int UnloadDuration { get; }
+        public uint UnloadDuration { get; }
 
         #region Equality and Deconstruct Members
 
@@ -42,7 +42,7 @@ namespace TransportTycoon
 
             return
                 Equals(Location, other.Location) &&
-                Equals(Distance, other.Distance) &&
+                Equals(TravelDuration, other.TravelDuration) &&
                 Equals(LoadDuration, other.LoadDuration) &&
                 Equals(UnloadDuration, other.UnloadDuration);
         }
@@ -58,17 +58,17 @@ namespace TransportTycoon
             {
                 int hashCode = 0;
                 hashCode = (hashCode * 397) ^ (Location.GetHashCode());
-                hashCode = (hashCode * 397) ^ (Distance.GetHashCode());
+                hashCode = (hashCode * 397) ^ (TravelDuration.GetHashCode());
                 hashCode = (hashCode * 397) ^ (LoadDuration.GetHashCode());
                 hashCode = (hashCode * 397) ^ (UnloadDuration.GetHashCode());
                 return hashCode;
             }
         }
 
-        public void Deconstruct(out TransportTycoon.Location location, out int distance, out int loadDuration, out int unloadDuration)
+        public void Deconstruct(out TransportTycoon.Location location, out uint travelDuration, out uint loadDuration, out uint unloadDuration)
         {
             location = Location;
-            distance = Distance;
+            travelDuration = TravelDuration;
             loadDuration = LoadDuration;
             unloadDuration = UnloadDuration;
         }

@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 
 using Cargo = System.Char;
-using Distance = System.UInt32;
+using Hour = System.UInt32;
 
 // ReSharper disable FieldCanBeMadeReadOnly.Local
 // ReSharper disable ArrangeTypeMemberModifiers
@@ -17,11 +17,11 @@ namespace TransportTycoon
 
     enum Location { Factory, Port, A, B }
 
-    [DebuggerDisplay("{VehicleType} —[ {Cargo.ToString()} ]→ {Location}")]
+    [DebuggerDisplay("{vehicleType} —[ {cargo} ]→ {location}")]
     delegate void WaypointRecord(Location location, VehicleType vehicleType, Cargo cargo);
 
-    [DebuggerDisplay("{Location} ({Distance})")]
-    delegate void DestinationRecord(Location location, Distance distance);
+    [DebuggerDisplay("{location} ({travelDuration})")]
+    delegate void DestinationRecord(Location location, Hour travelDuration, Hour loadDuration = 0, Hour unloadDuration = 0);
 
     class World
     {
@@ -29,12 +29,13 @@ namespace TransportTycoon
 
         static IReadOnlyDictionary<Waypoint, Destination> Map = new Dictionary<Waypoint, Destination>
         {
-            { new Waypoint(Location.Factory, VehicleType.Truck, 'A'), new Destination(Location.Port, distance: 1) },
-            { new Waypoint(Location.Port, VehicleType.Truck, NoCargo), new Destination(Location.Factory, distance: 1) },
-            { new Waypoint(Location.Port, VehicleType.Ship, 'A'), new Destination(Location.A, distance: 4) },
-            { new Waypoint(Location.A, VehicleType.Ship, NoCargo), new Destination(Location.Port, distance: 4) },
-            { new Waypoint(Location.Factory, VehicleType.Truck, 'B'), new Destination(Location.B, distance: 5) },
-            { new Waypoint(Location.B, VehicleType.Truck, NoCargo), new Destination(Location.Factory, distance: 5) }
+            { new Waypoint(Location.Factory, VehicleType.Truck, 'A'), new Destination(Location.Port, travelDuration: 1) },
+            { new Waypoint(Location.Port, VehicleType.Truck, NoCargo), new Destination(Location.Factory, travelDuration: 1) },
+            { new Waypoint(Location.Port, VehicleType.Ship, 'A'), new Destination(Location.A, travelDuration: 4) },
+            //{ new Waypoint(Location.Port, VehicleType.Ship, 'A'), new Destination(Location.A, travelDuration: 6, loadDuration: 1, unloadDuration: 1) },
+            { new Waypoint(Location.A, VehicleType.Ship, NoCargo), new Destination(Location.Port, travelDuration: 4) },
+            { new Waypoint(Location.Factory, VehicleType.Truck, 'B'), new Destination(Location.B, travelDuration: 5) },
+            { new Waypoint(Location.B, VehicleType.Truck, NoCargo), new Destination(Location.Factory, travelDuration: 5) }
         };
 
         static IReadOnlyDictionary<Location, List<Cargo>> Locations = new Dictionary<Location, List<Cargo>>
@@ -63,16 +64,16 @@ namespace TransportTycoon
             Console.WriteLine($"Input: {String.Join(String.Empty, goods)}, Output: {duration}");
         }
 
-        static int Resolve(IReadOnlyList<Cargo> goods)
+        static Hour Resolve(IReadOnlyList<Cargo> goods)
         {
             Locations[Location.Factory].AddRange(goods);
 
-            var duration = 0;
+            var time = 0U;
             while (true)
             {
                 foreach (var vehicle in Vehicles)
                 {
-                    vehicle.Run();
+                    vehicle.Run(time);
                 }
 
                 if (InStock == goods.Count)
@@ -80,10 +81,10 @@ namespace TransportTycoon
                     break;
                 }
 
-                duration++;
+                time++;
             }
 
-            return duration;
+            return time;
         }
 
         class Vehicle
@@ -91,8 +92,7 @@ namespace TransportTycoon
             VehicleType type;
             Location location;
             Cargo cargo = NoCargo;
-            Distance currentDistance;
-            Distance targetDistance;
+            Hour travelEta;
 
             public Vehicle(VehicleType vehicleType, Location currentLocation)
             {
@@ -100,13 +100,10 @@ namespace TransportTycoon
                 location = currentLocation;
             }
 
-            bool StillOnTheWay => currentDistance < targetDistance;
-
-            public void Run()
+            public void Run(Hour time)
             {
-                if (StillOnTheWay)
+                if (travelEta > time)
                 {
-                    Move();
                     return;
                 }
 
@@ -122,8 +119,7 @@ namespace TransportTycoon
                     Unload();
                 }
 
-                GetNewMission();
-                Move();
+                GetNewMission(time);
             }
 
             bool TryLoad()
@@ -147,18 +143,12 @@ namespace TransportTycoon
                 cargo = NoCargo;
             }
 
-            void GetNewMission()
+            void GetNewMission(Hour time)
             {
                 var currentWaypoint = new Waypoint(location, type, cargo);
-                var (newLocation, newDistance) = Map[currentWaypoint];
+                var (newLocation, travelDuration, loadDuration, unloadDuration) = Map[currentWaypoint];
                 location = newLocation;
-                currentDistance = 0;
-                targetDistance = newDistance;
-            }
-
-            void Move()
-            {
-                currentDistance++;
+                travelEta = time + travelDuration;
             }
         }
     }
