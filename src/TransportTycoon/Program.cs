@@ -49,7 +49,7 @@ namespace TransportTycoon
         {
             new Vehicle(VehicleType.Truck, Location.Factory),
             new Vehicle(VehicleType.Truck, Location.Factory),
-            new Vehicle(VehicleType.Ship, Location.Port)
+            new Vehicle(VehicleType.Ship, Location.Port, 4)
         };
 
         static int InStock => Locations[Location.A].Count + Locations[Location.B].Count;
@@ -90,16 +90,18 @@ namespace TransportTycoon
         {
             VehicleType type;
             Location location;
-            Cargo cargo = NoCargo;
+            int capacity;
+            List<Cargo> cargo = new List<char>();
 
             Hour loadEta;
             Hour travelEta;
             Hour unloadEta;
 
-            public Vehicle(VehicleType vehicleType, Location currentLocation)
+            public Vehicle(VehicleType vehicleType, Location currentLocation, int cargoCapacity = 1)
             {
                 type = vehicleType;
                 location = currentLocation;
+                capacity = cargoCapacity;
             }
 
             public void Run(Hour time)
@@ -122,15 +124,17 @@ namespace TransportTycoon
                     return;
                 }
 
-                if (cargo == NoCargo)
-                {
-                    Load(time);
-                }
-                else
+                if (HasCargo)
                 {
                     Unload(time);
                 }
+                else
+                {
+                    Load(time);
+                }
             }
+
+            bool HasCargo => cargo.Any();
 
             void Load(Hour time)
             {
@@ -141,9 +145,11 @@ namespace TransportTycoon
                     return;
                 }
 
-                cargo = warehouse.Pop().Single();
+                var newCargo = warehouse.Pop(capacity);
+                cargo.AddRange(newCargo);
+                var waypointCargo = cargo.First();
 
-                var currentWaypoint = new Waypoint(location, type, cargo);
+                var currentWaypoint = new Waypoint(location, type, waypointCargo);
                 var (newLocation, travelDuration, loadDuration, unloadDuration) = Map[currentWaypoint];
                 location = newLocation;
 
@@ -155,10 +161,10 @@ namespace TransportTycoon
             void Unload(Hour time)
             {
                 var warehouse = Locations[location];
-                warehouse.Add(cargo);
-                cargo = NoCargo;
+                var newCargo = cargo.PopAll();
+                warehouse.AddRange(newCargo);
 
-                var currentWaypoint = new Waypoint(location, type, cargo);
+                var currentWaypoint = new Waypoint(location, type, NoCargo);
                 var (newLocation, travelDuration, _, _) = Map[currentWaypoint];
                 location = newLocation;
 
