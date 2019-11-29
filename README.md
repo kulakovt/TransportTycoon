@@ -2,7 +2,7 @@
 
 Transport Tycoon Exercises for DDD
 
-## Exercise 1
+## Task
 
 | Input        | Ex. 1 | Ex. 2 |
 | ------------ | ----- | ----- |
@@ -12,3 +12,10 @@ Transport Tycoon Exercises for DDD
 | ABB          | 7     | 9     |
 | AABABBAB     | 29    | 23    |
 | ABBBABAAABBB | 41    | 39    |
+
+## Trace
+
+[![AABABBAB](./trace/AABABBAB.png)](/trace/AABABBAB.png)
+
+[![ABBBABAAABBB](./trace/ABBBABAAABBB.png)](/trace/ABBBABAAABBB.png)
+
