@@ -3,8 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 
-using Cargo = System.Char;
-using Hour = System.UInt32;
+using Hour = System.Int32;
+using CargoId = System.Int32;
+using TransportId = System.Int32;
 
 // ReSharper disable FieldCanBeMadeReadOnly.Local
 // ReSharper disable ArrangeTypeMemberModifiers
@@ -13,31 +14,34 @@ using Hour = System.UInt32;
 
 namespace TransportTycoon
 {
-    enum VehicleType { Truck, Ship }
+    enum TransportType { Truck, Ship }
 
     enum Location { Factory, Port, A, B }
 
-    [DebuggerDisplay("{vehicleType} —[ {cargo} ]→ {location}")]
-    delegate void WaypointRecord(Location location, VehicleType vehicleType, Cargo cargo);
+    [DebuggerDisplay("{transportType} —[ {from} ]→ {to}")]
+    delegate void TrackRecord(Location from, TransportType transportType, Location? to);
 
-    [DebuggerDisplay("{location} ({travelDuration})")]
+    [DebuggerDisplay("Travel = {travelDuration} (L = {loadDuration}, U = {unloadDuration})")]
     delegate void DestinationRecord(Location location, Hour travelDuration, Hour loadDuration = 0, Hour unloadDuration = 0);
+
+    [DebuggerDisplay("{id} ({origin} → {destination})")]
+    delegate void CargoRecord(CargoId id, Location origin, Location destination);
 
     class World
     {
-        const Cargo NoCargo = ' ';
+        static Location? Home = null;
 
-        static IReadOnlyDictionary<Waypoint, Destination> Map = new Dictionary<Waypoint, Destination>
+        static IReadOnlyDictionary<Track, Destination> Map = new Dictionary<Track, Destination>
         {
-            { new Waypoint(Location.Factory, VehicleType.Truck, 'A'), new Destination(Location.Port, travelDuration: 1) },
-            { new Waypoint(Location.Port, VehicleType.Truck, NoCargo), new Destination(Location.Factory, travelDuration: 1) },
-            { new Waypoint(Location.Port, VehicleType.Ship, 'A'), new Destination(Location.A, travelDuration: 6, loadDuration: 1, unloadDuration: 1) },
-            { new Waypoint(Location.A, VehicleType.Ship, NoCargo), new Destination(Location.Port, travelDuration: 4) },
-            { new Waypoint(Location.Factory, VehicleType.Truck, 'B'), new Destination(Location.B, travelDuration: 5) },
-            { new Waypoint(Location.B, VehicleType.Truck, NoCargo), new Destination(Location.Factory, travelDuration: 5) }
+            { new Track(Location.Factory, TransportType.Truck, Location.A), new Destination(Location.Port, travelDuration: 1) },
+            { new Track(Location.Port, TransportType.Truck, Home), new Destination(Location.Factory, travelDuration: 1) },
+            { new Track(Location.Port, TransportType.Ship, Location.A), new Destination(Location.A, travelDuration: 6, loadDuration: 1, unloadDuration: 1) },
+            { new Track(Location.A, TransportType.Ship, Home), new Destination(Location.Port, travelDuration: 6) },
+            { new Track(Location.Factory, TransportType.Truck, Location.B), new Destination(Location.B, travelDuration: 5) },
+            { new Track(Location.B, TransportType.Truck, Home), new Destination(Location.Factory, travelDuration: 5) }
         };
 
-        static IReadOnlyDictionary<Location, List<Cargo>> Locations = new Dictionary<Location, List<Cargo>>
+        static IReadOnlyDictionary<Location, List<Cargo>> Warehouses = new Dictionary<Location, List<Cargo>>
         {
             { Location.Factory, new List<Cargo>() },
             { Location.Port, new List<Cargo>() },
@@ -45,34 +49,37 @@ namespace TransportTycoon
             { Location.B, new List<Cargo>() }
         };
 
-        static IReadOnlyList<Vehicle> Vehicles = new List<Vehicle>
+        static IReadOnlyList<Transport> Transports = new List<Transport>
         {
-            new Vehicle(VehicleType.Truck, Location.Factory),
-            new Vehicle(VehicleType.Truck, Location.Factory),
-            new Vehicle(VehicleType.Ship, Location.Port, 4)
+            new Transport(TransportType.Truck, Location.Factory),
+            new Transport(TransportType.Truck, Location.Factory),
+            new Transport(TransportType.Ship, Location.Port, 4)
         };
 
-        static int InStock => Locations[Location.A].Count + Locations[Location.B].Count;
+        static int InStock => Warehouses[Location.A].Count + Warehouses[Location.B].Count;
+        static int CargoIdGenerator;
 
         public static void Main(string[] args)
         {
-            var goods = (args.Length > 0 ? args.First() : "ABBBABAAABBB").ToList();
+            Cargo NewCargo(char name) => new Cargo(CargoIdGenerator++, Location.Factory, Enum.Parse<Location>(name.ToString(), true));
 
-            var duration = Resolve(goods);
+            var store = (args.Length > 0 ? args.First() : "ABBBABAAABBB").ToList();
 
-            Console.WriteLine($"Input: {String.Join(String.Empty, goods)}, Output: {duration}");
+            var duration = Resolve(store.Select(NewCargo).ToList());
+
+            Console.WriteLine($"Input: {String.Join(String.Empty, store)}, Output: {duration}");
         }
 
         static Hour Resolve(IReadOnlyList<Cargo> goods)
         {
-            Locations[Location.Factory].AddRange(goods);
+            Warehouses[Location.Factory].AddRange(goods);
 
-            var time = 0U;
+            var time = 0;
             while (true)
             {
-                foreach (var vehicle in Vehicles)
+                foreach (var transport in Transports)
                 {
-                    vehicle.Run(time);
+                    transport.Run(time);
                 }
 
                 if (InStock == goods.Count)
@@ -86,21 +93,29 @@ namespace TransportTycoon
             return time;
         }
 
-        class Vehicle
+        [DebuggerDisplay("{type} №{id} ({from} → {to}) [{store.Count}]")]
+        class Transport
         {
-            VehicleType type;
-            Location location;
+            static TransportId IdGenerator;
+            const Hour NoEta = -1;
+
+            TransportId id;
+            TransportType type;
+            Location from;
+            Location to;
             int capacity;
-            List<Cargo> cargo = new List<char>();
+            List<Cargo> store = new List<Cargo>();
 
-            Hour loadEta;
-            Hour travelEta;
-            Hour unloadEta;
+            Hour loadEta = NoEta;
+            Hour travelEta = NoEta;
+            Hour unloadEta = NoEta;
 
-            public Vehicle(VehicleType vehicleType, Location currentLocation, int cargoCapacity = 1)
+            public Transport(TransportType transportType, Location currentLocation, int cargoCapacity = 1)
             {
-                type = vehicleType;
-                location = currentLocation;
+                id = IdGenerator++;
+                type = transportType;
+                from = currentLocation;
+                to = currentLocation;
                 capacity = cargoCapacity;
             }
 
@@ -112,10 +127,28 @@ namespace TransportTycoon
                     return;
                 }
 
+                if (loadEta == time)
+                {
+                    // Load complete
+                    OnDepart(time);
+                }
+
                 if (travelEta > time)
                 {
-                    // Still on the way
+                    // Still on the way...
                     return;
+                }
+
+                if (travelEta == time)
+                {
+                    // Travel complete
+                    Park();
+                    OnArrive(time);
+
+                    if (unloadEta != NoEta)
+                    {
+                        OnBeginUnload(time);
+                    }
                 }
 
                 if (unloadEta > time)
@@ -127,31 +160,50 @@ namespace TransportTycoon
                 if (HasCargo)
                 {
                     Unload(time);
+
+                    // Back home
+                    OnDepart(time);
                 }
                 else
                 {
                     Load(time);
+
+                    if (loadEta != NoEta)
+                    {
+                        OnBeginLoad(time);
+                    }
+
+                    if (loadEta == time)
+                    {
+                        // Load complete
+                        OnDepart(time);
+                    }
                 }
             }
 
-            bool HasCargo => cargo.Any();
+            bool HasCargo => store.Any();
+
+            void Park()
+            {
+                from = to;
+            }
 
             void Load(Hour time)
             {
-                var warehouse = Locations[location];
+                var warehouse = Warehouses[from];
                 if (!warehouse.Any())
                 {
                     // Wait until cargo is available
                     return;
                 }
 
-                var newCargo = warehouse.Pop(capacity);
-                cargo.AddRange(newCargo);
-                var waypointCargo = cargo.First();
+                var cargo = warehouse.Pop(capacity);
+                store.AddRange(cargo);
+                var destination = store.First().Destination;
 
-                var currentWaypoint = new Waypoint(location, type, waypointCargo);
+                var currentWaypoint = new Track(from, type, destination);
                 var (newLocation, travelDuration, loadDuration, unloadDuration) = Map[currentWaypoint];
-                location = newLocation;
+                to = newLocation;
 
                 loadEta = time + loadDuration;
                 travelEta = loadEta + travelDuration;
@@ -160,17 +212,34 @@ namespace TransportTycoon
 
             void Unload(Hour time)
             {
-                var warehouse = Locations[location];
-                var newCargo = cargo.PopAll();
-                warehouse.AddRange(newCargo);
+                var warehouse = Warehouses[to];
+                var cargo = store.PopAll();
+                warehouse.AddRange(cargo);
 
-                var currentWaypoint = new Waypoint(location, type, NoCargo);
+                var currentWaypoint = new Track(to, type, Home);
                 var (newLocation, travelDuration, _, _) = Map[currentWaypoint];
-                location = newLocation;
+                from = to;
+                to = newLocation;
 
-                loadEta = 0;
+                loadEta = NoEta;
                 travelEta = time + travelDuration;
-                unloadEta = 0;
+                unloadEta = NoEta;
+            }
+
+            void OnBeginLoad(Hour time) => Log("LOAD", time, from, duration: unloadEta - travelEta);
+            void OnDepart(Hour time) => Log("DEPART", time, from, to);
+            void OnBeginUnload(Hour time) => Log("UNLOAD", time, to, duration: unloadEta - travelEta);
+            void OnArrive(Hour time) => Log("ARRIVE", time, to);
+
+            void Log(string messageType, Hour time, Location location, Location? destination = null, int? duration = null)
+            {
+                if (duration == 0)
+                {
+                    // Skip zero-duration operations
+                    return;
+                }
+
+                Logger.Write(messageType, time, id, type, location, destination, duration, store);
             }
         }
     }
