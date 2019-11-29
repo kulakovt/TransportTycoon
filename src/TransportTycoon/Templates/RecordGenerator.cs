@@ -14,10 +14,67 @@ using System.Collections.Generic;
 
 namespace TransportTycoon
 {
-    [System.Diagnostics.DebuggerDisplay("{Location} ({TravelDuration})")]
+    [System.Diagnostics.DebuggerDisplay("{Id} ({Origin} → {Destination})")]
+    internal sealed class Cargo: IEquatable<Cargo>
+    {
+        public Cargo(int id, TransportTycoon.Location origin, TransportTycoon.Location destination)
+        {
+            Id = id;
+            Origin = origin;
+            Destination = destination;
+        }
+
+        public int Id { get; }
+
+        public TransportTycoon.Location Origin { get; }
+
+        public TransportTycoon.Location Destination { get; }
+
+        #region Equality and Deconstruct Members
+
+        public bool Equals(Cargo other)
+        {
+            if (ReferenceEquals(null, other)) return false;
+            if (ReferenceEquals(this, other)) return true;
+
+            return
+                Equals(Id, other.Id) &&
+                Equals(Origin, other.Origin) &&
+                Equals(Destination, other.Destination);
+        }
+
+        public override bool Equals(object obj)
+        {
+            return Equals(obj as Cargo);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hashCode = 0;
+                hashCode = (hashCode * 397) ^ (Id.GetHashCode());
+                hashCode = (hashCode * 397) ^ (Origin.GetHashCode());
+                hashCode = (hashCode * 397) ^ (Destination.GetHashCode());
+                return hashCode;
+            }
+        }
+
+        public void Deconstruct(out int id, out TransportTycoon.Location origin, out TransportTycoon.Location destination)
+        {
+            id = Id;
+            origin = Origin;
+            destination = Destination;
+        }
+
+        #endregion Equality and Deconstruct Members
+
+    }
+
+    [System.Diagnostics.DebuggerDisplay("Travel = {TravelDuration} (L = {LoadDuration}, U = {UnloadDuration})")]
     internal sealed class Destination: IEquatable<Destination>
     {
-        public Destination(TransportTycoon.Location location, uint travelDuration, uint loadDuration = 0, uint unloadDuration = 0)
+        public Destination(TransportTycoon.Location location, int travelDuration, int loadDuration = 0, int unloadDuration = 0)
         {
             Location = location;
             TravelDuration = travelDuration;
@@ -27,11 +84,11 @@ namespace TransportTycoon
 
         public TransportTycoon.Location Location { get; }
 
-        public uint TravelDuration { get; }
+        public int TravelDuration { get; }
 
-        public uint LoadDuration { get; }
+        public int LoadDuration { get; }
 
-        public uint UnloadDuration { get; }
+        public int UnloadDuration { get; }
 
         #region Equality and Deconstruct Members
 
@@ -65,7 +122,7 @@ namespace TransportTycoon
             }
         }
 
-        public void Deconstruct(out TransportTycoon.Location location, out uint travelDuration, out uint loadDuration, out uint unloadDuration)
+        public void Deconstruct(out TransportTycoon.Location location, out int travelDuration, out int loadDuration, out int unloadDuration)
         {
             location = Location;
             travelDuration = TravelDuration;
@@ -77,38 +134,38 @@ namespace TransportTycoon
 
     }
 
-    [System.Diagnostics.DebuggerDisplay("{VehicleType} —[ {Cargo} ]→ {Location}")]
-    internal sealed class Waypoint: IEquatable<Waypoint>
+    [System.Diagnostics.DebuggerDisplay("{TransportType} —[ {From} ]→ {To}")]
+    internal sealed class Track: IEquatable<Track>
     {
-        public Waypoint(TransportTycoon.Location location, TransportTycoon.VehicleType vehicleType, char cargo)
+        public Track(TransportTycoon.Location from, TransportTycoon.TransportType transportType, TransportTycoon.Location? to)
         {
-            Location = location;
-            VehicleType = vehicleType;
-            Cargo = cargo;
+            From = from;
+            TransportType = transportType;
+            To = to;
         }
 
-        public TransportTycoon.Location Location { get; }
+        public TransportTycoon.Location From { get; }
 
-        public TransportTycoon.VehicleType VehicleType { get; }
+        public TransportTycoon.TransportType TransportType { get; }
 
-        public char Cargo { get; }
+        public TransportTycoon.Location? To { get; }
 
         #region Equality and Deconstruct Members
 
-        public bool Equals(Waypoint other)
+        public bool Equals(Track other)
         {
             if (ReferenceEquals(null, other)) return false;
             if (ReferenceEquals(this, other)) return true;
 
             return
-                Equals(Location, other.Location) &&
-                Equals(VehicleType, other.VehicleType) &&
-                Equals(Cargo, other.Cargo);
+                Equals(From, other.From) &&
+                Equals(TransportType, other.TransportType) &&
+                Equals(To, other.To);
         }
 
         public override bool Equals(object obj)
         {
-            return Equals(obj as Waypoint);
+            return Equals(obj as Track);
         }
 
         public override int GetHashCode()
@@ -116,18 +173,18 @@ namespace TransportTycoon
             unchecked
             {
                 int hashCode = 0;
-                hashCode = (hashCode * 397) ^ (Location.GetHashCode());
-                hashCode = (hashCode * 397) ^ (VehicleType.GetHashCode());
-                hashCode = (hashCode * 397) ^ (Cargo.GetHashCode());
+                hashCode = (hashCode * 397) ^ (From.GetHashCode());
+                hashCode = (hashCode * 397) ^ (TransportType.GetHashCode());
+                hashCode = (hashCode * 397) ^ (To != null ? To.GetHashCode() : 0);
                 return hashCode;
             }
         }
 
-        public void Deconstruct(out TransportTycoon.Location location, out TransportTycoon.VehicleType vehicleType, out char cargo)
+        public void Deconstruct(out TransportTycoon.Location from, out TransportTycoon.TransportType transportType, out TransportTycoon.Location? to)
         {
-            location = Location;
-            vehicleType = VehicleType;
-            cargo = Cargo;
+            from = From;
+            transportType = TransportType;
+            to = To;
         }
 
         #endregion Equality and Deconstruct Members
